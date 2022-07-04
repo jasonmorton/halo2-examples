@@ -121,15 +121,28 @@ impl<F: FieldExt, const RANGE: usize> Circuit<F> for MyCircuit<F, RANGE> {
         config: Self::Config,
         mut layouter: impl Layouter<F>, // layouter is our 'write buffer' for the circuit
     ) -> Result<(), Error> {
+        // From the function docs:
+        // Assign a region of gates to an absolute row number.
+        // Inside the closure, the chip may freely use relative offsets; the `Layouter` will
+        // treat these assignments as a single "region" within the circuit. Outside this
+        // closure, the `Layouter` is allowed to optimise as it sees fit.
+
         layouter.assign_region(
-            || "Assign value",
+            || "Assign value", // the name of the region
             |mut region| {
                 let offset = 0;
 
-                // Enable q_range_check
+                // Enable q_range_check. Remember that q_range_check is a label, a Selector.  Calling its enable
+                // - calls region.enable_selector(_,q_range_check,offset)  which
+                // - calls enable_selector on the region's RegionLayouter which
+                // - calls enable_selector on its "CS" (actually an Assignment<F> (a trait), and whatever impls that
+                // does the work, for example for MockProver the enable_selector function does some checks and then sets
+                //   self.selectors[selector.0][row] = true;
                 config.q_range_check.enable(&mut region, offset)?;
 
-                // Assign value
+                // Similarly after indirection calls assign_advice in e.g. the MockProver, which
+                // takes a Value-producing to() and does something like
+                // CellValue::Assigned(to().into_field().evaluate().assign()?);
                 region.assign_advice(
                     || "value",
                     config.advice_column,
